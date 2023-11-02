@@ -1,6 +1,6 @@
 import discord
 import responses
-
+import os
 
 async def send_message(message, user_message, is_private):
     try:
@@ -12,7 +12,6 @@ async def send_message(message, user_message, is_private):
 
 
 def run_discord_bot():
-    TOKEN = 'MTE2NzA0MDYyNTM0Mjk1MTQyNA.GhygXI.jDM2L8h8kypwoZlAANa1_wBSsX0Wi1vN2kYoM0'
     client = discord.Client()
 
     @client.event
@@ -28,4 +27,4 @@ def run_discord_bot():
         if message.content.startswith('!'):
             await send_message(message, message.content[1:], False)
 
-    client.run(TOKEN)
+    client.run(os.environ['TOKEN'])
