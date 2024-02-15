@@ -4,7 +4,7 @@ import requests
 import numpy as np
 import cv2
 from pyzbar.pyzbar import decode
-from cv import get_data as gt
+from src.cv import get_data as gt
 
 
 async def create_verification_channel(member, guild):

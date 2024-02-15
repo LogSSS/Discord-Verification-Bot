@@ -1,7 +1,7 @@
 import discord
 import os
 from discord.ext import commands
-import functionality as f
+from src import functionality as f
 
 
 def run_discord_bot():
