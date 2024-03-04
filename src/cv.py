@@ -8,20 +8,28 @@ dates = ["січня", "лютого", "березня", "квітня", "тра
 
 def get_data(image_path):
     text_ = get_text_from_image(image_path)
+    univer = get_univer_from_text(text_)
     series = get_series_from_text(text_)
+    name = get_name_from_text(text_)
     date, year = get_date_and_year_from_text(text_)
     faculty = get_faculty_from_text(text_)
     group = get_group_from_text(text_)
     updated_group = get_updated_group(group, date, year)
 
-    if not series or len(date) != 2 or len(year) != 2 or not date and not year or not faculty or not group:
+    if not univer or not series or not name or len(date) != 2 or len(
+            year) != 2 or not date and not year or not faculty or not group:
         return False, "Provided image is invalid"
 
     if not updated_group:
         return False, "You are not studying anymore"
 
+    if not univer.__contains__("Прикарпатський національний університет імені Василя Стефаника"):
+        return False, "Your not from our university!"
+
     return True, {
+        "univer": univer,
         "series": series,
+        "name": name,
         "date": date,
         "year": year,
         "faculty": faculty,
@@ -32,11 +40,24 @@ def get_data(image_path):
 def get_text_from_image(image):
     reader = easyocr.Reader(['uk'], gpu=False)
     text = reader.readtext(image)
+
     return text
+
+
+def get_univer_from_text(text):
+    univer = None
+
+    for t in range(len(text) - 1):
+        if re.match(r'.*с[ое]рія.*н[ое]м[ое]р.*', text[t][1].lower()):
+            univer = " ".join([text[i][1] for i in range(t)])
+            break
+
+    return univer
 
 
 def get_series_from_text(text):
     series = None
+
     for t in range(len(text) - 1):
         if re.match(r'.*с[ое]рія.*н[ое]м[ое]р.*', text[t][1].lower()):
             series = text[t + 1][1]
@@ -44,30 +65,49 @@ def get_series_from_text(text):
             if pattern.match(series):
                 series = series if "№" in series else series[:3] + "№" + series[5:]
             break
+
     return series
+
+
+def get_name_from_text(text):
+    name = None
+
+    for t in range(len(text) - 1):
+        if re.match(r'пр[иі]з?[ве][инч]ще.*([і1]м.*|[і1]я|ім\'я)', text[t][1].lower()):
+            if text[t + 1][1][0].islower():
+                name = text[t + 2][1] + " " + text[t + 3][1]
+            else:
+                name = text[t + 1][1] + " " + text[t + 2][1]
+            break
+
+    return name
 
 
 def get_date_and_year_from_text(text):
     date = [t[1] for t in text if any(date1 in t[1].lower() for date1 in dates)]
     year = [re.match(r'\b\d{4}\sр\.?', t[1].lower()).group(0) for t in text if
             re.match(r'\b\d{4}\sр\.?', t[1].lower())]
+
     return date, year
 
 
 def get_faculty_from_text(text):
     faculty = ""
+
     for t_, t in enumerate(text):
-        if re.compile(r'форма\s+на[све][чнш]ан[ня]').search(t[1].lower()):
+        if re.compile(r'форма\s+на[сшве][чнш]ан[ня]').search(t[1].lower()):
             for i in range(t_ + 1, len(text)):
                 if "денна" in text[i][1].lower() or "заочна" in text[i][1].lower():
                     break
                 faculty += text[i][1] + " "
             break
+
     return faculty
 
 
 def get_group_from_text(text):
     group = next((text[i + 1][1] for i in range(len(text) - 1) if "група" in text[i][1].lower()), None)
+
     return group
 
 
@@ -76,6 +116,7 @@ def convert_to_datetime(date_str, year_str):
     month_num = dates.index(month) + 1
     year = int(year_str.split()[0])
     out = datetime(year, month_num, int(day))
+
     return out
 
 
@@ -83,6 +124,8 @@ def get_updated_group(group, date, year):
     current_date = datetime.now()
     years_of_studying = current_date.year - int(year[0].split()[0])
     second_date = convert_to_datetime(date[1], year[1])
+
     if current_date > second_date:
         return False
+
     return f"{group.split('-')[0]}-{years_of_studying}"

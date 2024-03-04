@@ -10,5 +10,4 @@ def handle_response(message) -> str:
     if p_message == "roll":
         return str(random.randint(1, 6))
 
-    if p_message == "help":
-        return "Commands: !roll, !hello, !help"
+    return "Commands: !roll, !hello, !help"
