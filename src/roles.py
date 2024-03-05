@@ -49,21 +49,26 @@ async def create_channels(guild, group, faculty):
         print(f"An error occurred while creating group channel '{faculty}': {e}")
 
 
-async def create_role(guild, role_name, color=None):
+async def create_role(guild, role_name, color=None, hoist=True, pos=-1, perm=None):
     try:
+        if pos == -1:
+            pos = len(guild.roles)
+
+        if not perm:
+            perm = discord.Permissions.none()
+
         if not color:
             color = discord.Colour.from_rgb(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-        new_role = await guild.create_role(name=role_name, colour=color)
-        new_role.hoist = True
+
+        new_role = await guild.create_role(name=role_name, colour=color, hoist=hoist, permissions=perm)
+        await new_role.edit(position=pos)
         return new_role
     except Exception as e:
         print(f"An error occurred while creating role '{role_name}': {e}")
         return None
 
 
-def is_role_exists(message, role_name):
-    guild = message.guild
-
+def is_role_exists(guild, role_name):
     if guild:
         role = discord.utils.get(guild.roles, name=role_name)
         if role:

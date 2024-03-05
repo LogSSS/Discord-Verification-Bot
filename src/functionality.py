@@ -54,18 +54,9 @@ async def verification(message):
     try:
         attachment = message.attachments[0]
 
-        response = requests.get(attachment.url)
-        img_array = np.frombuffer(response.content, dtype=np.uint8)
-        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+        img = await get_img(attachment.url)
 
-        decoded_objects = decode(img)
-        link = None
-
-        for obj in decoded_objects:
-            c = obj.data.decode('utf-8')
-            if "https://diia.app/documents/student-id-card/" in c and "/verify/" in c:
-                link = obj.data.decode('utf-8')
-                break
+        link = await get_link(img)
 
         if link is not None:
 
@@ -73,6 +64,7 @@ async def verification(message):
 
             if data:
                 await message.channel.send(f"Sorry but we cant verify u now\n{data[1]}")
+                return False
             else:
                 await message.channel.send("Sorry, but your qr code is not valid! Please try again.")
                 return False
@@ -83,15 +75,35 @@ async def verification(message):
                 if verify.verify_by_card(data):
                     await name_roles_and_channels(message, data)
                     await message.channel.send("You have been verified!")
+                    return True
                 else:
                     await message.channel.send("Sorry, but your student card is not valid! Please try again.")
+                    return False
             else:
                 await message.channel.send("Uploaded image is not valid! Please try again.")
                 return False
     except Exception as e:
         print(e)
         return False
-    return True
+
+
+async def get_link(img):
+    decoded_objects = decode(img)
+    link = None
+
+    for obj in decoded_objects:
+        c = obj.data.decode('utf-8')
+        if "https://diia.app/documents/student-id-card/" in c and "/verify/" in c:
+            link = obj.data.decode('utf-8')
+            break
+    return link
+
+
+async def get_img(url):
+    response = requests.get(url)
+    img_array = np.frombuffer(response.content, dtype=np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    return img
 
 
 async def name_roles_and_channels(message, data):
@@ -101,10 +113,10 @@ async def name_roles_and_channels(message, data):
         faculty = ''.join(word[0] for word in str(data[1]['faculty']).split() if len(word) > 2).upper()
         role = data[1]['group'] + " " + faculty
 
-        if not roles.is_role_exists(message, role):
-            await roles.create_role(message.guild, role)
-            if not roles.is_role_exists(message, faculty):
-                await roles.create_role(message.guild, faculty)
+        if not roles.is_role_exists(message.guild, role):
+            await roles.create_role(message.guild, role, None, True, get_new_role_id(message.guild, role))
+            if not roles.is_role_exists(message.guild, faculty):
+                await roles.create_role(message.guild, faculty, None, False)
             if not roles.is_category_exists(message.guild, faculty):
                 await roles.create_faculty_channel(message.guild, faculty)
             await roles.create_channels(message.guild, data[1]['group'], faculty)
@@ -114,3 +126,65 @@ async def name_roles_and_channels(message, data):
         await roles.add_role(message, "Verified")
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+async def get_new_role_id(guild, role):
+    for role in guild.roles:
+        if any(char.isdigit() for char in role):
+            return role.id
+        if role.name > role:
+            return role.id
+
+
+async def on_guild_join(guild):
+    await on_guild_join_create_roles(guild)
+    await on_guild_join_create_channels(guild)
+
+
+async def on_guild_join_create_roles(guild):
+    if not roles.is_role_exists(guild, "Admin"):
+        await roles.create_role(guild, "Admin", discord.Colour.from_rgb(103, 26, 153), True, 1,
+                                discord.Permissions(administrator=True))
+        await guild.owner.add_roles(discord.utils.get(guild.roles, name="Admin"))
+
+    if not roles.is_role_exists(guild, "Verified"):
+        await roles.create_role(guild, "Verified", discord.Colour.from_rgb(71, 7, 7), False)
+
+
+async def on_guild_join_create_channels(guild):
+    category = await guild.create_category("VERIFICATION")
+    await category.set_permissions(discord.utils.get(guild.roles, name="Verified"), read_messages=False)
+
+    channel = await guild.create_text_channel("VERIFICATION", category=category)
+    await channel.set_permissions(guild.default_role, send_messages=False)
+    await channel.set_permissions(discord.utils.get(guild.roles, name="Verified"), read_messages=False)
+
+    message = await channel.send("Message for verification\nPress ✅ emoji to complete verification\n\n@everyone")
+    await message.add_reaction("✅")
+
+    # open src/data/channels.txt and get all lines after that check if current guild id is in lines
+    # if not add it to file
+    with open("src/data/channels.txt", "r") as file:
+        lines = file.readlines()
+
+    if len(lines) > 0:
+        if str(guild.id) not in lines:
+            with open("src/data/channels.txt", "a") as file:
+                file.write(f"{guild.id} - {message.id}\n")
+        else:
+            # change message id
+            for i in range(len(lines)):
+                if str(guild.id) in lines[i]:
+                    lines[i] = f"{guild.id} - {message.id}\n"
+                    break
+    else:
+        with open("src/data/channels.txt", "w") as file:
+            file.write(f"{guild.id} - {message.id}\n")
+
+    category = await guild.create_category("AFK")
+    await category.set_permissions(discord.utils.get(guild.roles, name="Verified"), read_messages=True)
+
+    channel = await guild.create_voice_channel("Тихий час", category=category)
+    await channel.set_permissions(guild.default_role, read_messages=False)
+
+    await guild.edit(afk_channel=channel)
