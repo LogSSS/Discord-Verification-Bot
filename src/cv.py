@@ -16,15 +16,8 @@ def get_data(image_path):
     group = get_group_from_text(text_)
     updated_group = get_updated_group(group, date, year)
 
-    if not univer or not series or not name or len(date) != 2 or len(
-            year) != 2 or not date and not year or not faculty or not group:
+    if not series or not name or not faculty or not group:
         return False, "Provided image is invalid"
-
-    if not updated_group:
-        return False, "You are not studying anymore"
-
-    if not univer.__contains__("Прикарпатський національний університет імені Василя Стефаника"):
-        return False, "Your not from our university!"
 
     return True, {
         "univer": univer,

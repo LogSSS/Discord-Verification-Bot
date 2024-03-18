@@ -61,7 +61,7 @@ def run_discord_bot():
             if message.channel.category and message.channel.category.name == "VERIFICATION":
                 if message.attachments:
                     loading_message = await message.channel.send("Processing...")
-                    if await f.verification(message):
+                    if await f.verification(message, client):
                         await asyncio.sleep(5)
                         await message.channel.delete()
                     else:

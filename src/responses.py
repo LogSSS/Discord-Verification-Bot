@@ -10,4 +10,5 @@ def handle_response(message) -> str:
     if p_message == "roll":
         return str(random.randint(1, 6))
 
-    return "Commands: !roll, !hello, !help"
+    if p_message == "help":
+        return "Commands: !roll, !hello, !help, !refresh(only in verification channel)"

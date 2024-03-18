@@ -50,7 +50,7 @@ async def send_message(message, user_message, is_private):
         print(e)
 
 
-async def verification(message):
+async def verification(message, bot):
     try:
         attachment = message.attachments[0]
 
@@ -70,19 +70,22 @@ async def verification(message):
                 return False
         else:
             data = gt(img)
-            if data:
-
-                if verify.verify_by_card(data):
+            if data[0]:
+                data = await verify.verify_by_card(data[1], message, bot)
+                if data[0]:
+                    data = data[1]
                     await name_roles_and_channels(message, data)
                     await message.channel.send("You have been verified!")
                     return True
                 else:
                     await message.channel.send("Sorry, but your student card is not valid! Please try again.")
+                    await message.channel.send(data[1])
                     return False
             else:
-                await message.channel.send("Uploaded image is not valid! Please try again.")
+                await message.channel.send(data[1] + "\nPlease try again.")
                 return False
     except Exception as e:
+        print("verification func")
         print(e)
         return False
 
@@ -108,10 +111,10 @@ async def get_img(url):
 
 async def name_roles_and_channels(message, data):
     try:
-        await roles.change_name(message, data[1]['name'])
+        await roles.change_name(message, data['name'])
 
-        faculty = ''.join(word[0] for word in str(data[1]['faculty']).split() if len(word) > 2).upper()
-        role = data[1]['group'] + " " + faculty
+        faculty = ''.join(word[0] for word in str(data['faculty']).split() if len(word) > 2).upper()
+        role = data['group'] + " " + faculty
 
         if not roles.is_role_exists(message.guild, role):
             await roles.create_role(message.guild, role, None, True, get_new_role_id(message.guild, role))
@@ -119,7 +122,7 @@ async def name_roles_and_channels(message, data):
                 await roles.create_role(message.guild, faculty, None, False)
             if not roles.is_category_exists(message.guild, faculty):
                 await roles.create_faculty_channel(message.guild, faculty)
-            await roles.create_channels(message.guild, data[1]['group'], faculty)
+            await roles.create_channels(message.guild, data['group'], faculty)
 
         await roles.add_role(message, faculty)
         await roles.add_role(message, role)
@@ -129,11 +132,11 @@ async def name_roles_and_channels(message, data):
 
 
 async def get_new_role_id(guild, role):
-    for role in guild.roles:
-        if any(char.isdigit() for char in role):
-            return role.id
-        if role.name > role:
-            return role.id
+    for item in guild.roles:
+        if any(char.isdigit() for char in item):
+            return item.id
+        if item.name > role:
+            return item.id
 
 
 async def on_guild_join(guild):
@@ -162,8 +165,6 @@ async def on_guild_join_create_channels(guild):
     message = await channel.send("Message for verification\nPress ✅ emoji to complete verification\n\n@everyone")
     await message.add_reaction("✅")
 
-    # open src/data/channels.txt and get all lines after that check if current guild id is in lines
-    # if not add it to file
     with open("src/data/channels.txt", "r") as file:
         lines = file.readlines()
 
