@@ -1,6 +1,7 @@
 import asyncio
 import discord
 import base64
+import urllib.parse
 import time
 import re
 from io import BytesIO
@@ -28,7 +29,8 @@ async def get_data_from_json(json_data, data):
 
 
 async def get_json_data(data, message, bot):
-    url = "https://info.edbo.gov.ua/student-tickets/"
+    base_url = base64.b64decode("aHR0cHM6Ly9pbmZvLmVkYm8uZ292LnVhL3N0dWRlbnQtdGlja2V0cy8=").decode('utf-8')
+    url = urllib.parse.unquote(base_url)
     driver = await get_driver()
     driver.get(url)
     captcha = await get_captcha_text(driver, message, bot, 0)
