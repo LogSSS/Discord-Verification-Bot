@@ -13,8 +13,9 @@ async def verify_by_card(data, message, bot):
     json_data = await get_json_data(data, message, bot)
     if not json_data[0]:
         return False, json_data[1]
-
-    return True, await get_data_from_json(json_data[1], data)
+    json = json_data[1]
+    new_data = await get_data_from_json(json, data)
+    return True, new_data
 
 
 async def get_data_from_json(json_data, data):
@@ -85,18 +86,16 @@ async def check_result(result):
 async def get_proper_old_data(data, captcha):
     series = data["series"]
     docMatches = re.match(r'([А-Яа-я]+) №(\d+)', series)
-    if docMatches:
-        documentSeries = docMatches.group(1)
-        documentNumber = docMatches.group(2)
+    documentSeries = docMatches.group(1)
+    documentNumber = docMatches.group(2)
 
     name = data["name"]
     nameMatches = re.match(r'(\S+)\s+(\S+)\s*(\S*)', name)
 
-    if nameMatches:
-        lastName = nameMatches.group(1)
-        firstName = nameMatches.group(2)
-        middleName = nameMatches.group(3)
-        skipMiddleName = "false" if middleName else "true"
+    lastName = nameMatches.group(1)
+    firstName = nameMatches.group(2)
+    middleName = nameMatches.group(3)
+    skipMiddleName = "false" if middleName else "true"
 
     return {
         "documentSeries": documentSeries,
@@ -138,7 +137,6 @@ async def get_captcha_text(driver, message, bot, c):
     if c > 10:
         driver.quit()
         return False, "You have refresh the captcha too many times. Please try again by uploading the document again"
-    user_response = None
     bool_user_response = False
     if c != 0:
         file = await get_captcha(driver, True)
@@ -169,4 +167,5 @@ async def get_captcha_text(driver, message, bot, c):
 
 
 async def verify_by_qr(link):
+    print(link)
     return True, "Current version of the bot does not support this feature, cause we haven't access to the DIYA API"

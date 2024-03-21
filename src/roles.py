@@ -94,3 +94,8 @@ async def change_name(message, name):
 def is_user_exists(user):
     # get notes from user
     pass
+
+
+def set_user_notes(user, notes):
+    # set notes to user
+    pass
