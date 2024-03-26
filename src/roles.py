@@ -1,5 +1,9 @@
 import discord
 import random
+import hashlib
+
+from src.db import create_db_pool
+from datetime import datetime
 
 
 async def add_role(message, role):
@@ -91,11 +95,26 @@ async def change_name(message, name):
     await member.edit(nick=name)
 
 
-def is_user_exists(user):
-    # get notes from user
-    pass
+async def add_user(message, data):
+    series = hashlib.sha512(data['series'].encode()).hexdigest()
+    pool = await create_db_pool()
+    async with pool.acquire() as con:
+        async with con.transaction():
+            query = "INSERT INTO discord_users (user_id, server_id, name, date, series) VALUES ($1, $2, $3, $4, $5)"
+            await con.execute(query, str(message.author.id), str(message.guild.id),
+                              data['name'], datetime.strptime(data['expired'], '%d.%m.%Y').date(), series)
 
 
-def set_user_notes(user, notes):
-    # set notes to user
+async def is_user_exists(message, data):
+    series = hashlib.sha512(data['series'].encode()).hexdigest()
+    pool = await create_db_pool()
+    async with pool.acquire() as con:
+        async with con.transaction():
+            query = "SELECT COUNT(*) FROM discord_users WHERE user_id = $1 AND server_id = $2 AND name = $3 AND series = $4"
+            count = await con.fetchval(query, str(message.author.id), str(message.guild.id), data['name'], series)
+            return count > 0
+
+
+async def remove_user(message):
+    # remove user from database
     pass

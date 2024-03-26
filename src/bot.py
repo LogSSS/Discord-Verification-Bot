@@ -4,6 +4,7 @@ import os
 
 from discord.ext import commands
 from src import functionality as f
+from src.db import create_db_pool
 
 
 def run_discord_bot():
@@ -61,10 +62,9 @@ def run_discord_bot():
             if message.channel.category and message.channel.category.name == "VERIFICATION":
                 if message.attachments:
                     loading_message = await message.channel.send("Processing...")
-                    if await f.verification(message, client):
+                    if await f.verification(message, client, loading_message):
                         await asyncio.sleep(5)
                         await message.channel.delete()
-                    else:
-                        await loading_message.delete()
 
+    client.loop.run_until_complete(create_db_pool())
     client.run(os.environ['TOKEN'])

@@ -50,7 +50,7 @@ async def send_message(message, user_message, is_private):
         print(e)
 
 
-async def verification(message, bot):
+async def verification(message, bot, loading_message):
     try:
         attachment = message.attachments[0]
 
@@ -63,20 +63,27 @@ async def verification(message, bot):
             data = verify.verify_by_qr(link)
 
             if data:
+                await loading_message.delete()
                 await message.channel.send(f"Sorry but we cant verify u now\n{data[1]}")
                 return False
             else:
+                await loading_message.delete()
                 await message.channel.send("Sorry, but your qr code is not valid! Please try again.")
                 return False
         else:
             data = gt(img)
+            await loading_message.delete()
             if data[0]:
                 data = await verify.verify_by_card(data[1], message, bot)
                 if data[0]:
                     data = data[1]
-                    await name_roles_and_channels(message, data)
-                    await message.channel.send("You have been verified!")
-                    return True
+                    if not await roles.is_user_exists(message, data):
+                        await roles.add_user(message, data)
+                        await name_roles_and_channels(message, data)
+                        await message.channel.send("You have been verified!")
+                        return True
+                    await message.channel.send("User already exists!")
+                    return False
                 else:
                     await message.channel.send("Sorry, but your student card is not valid! Please try again.")
                     await message.channel.send(data[1])
@@ -85,7 +92,6 @@ async def verification(message, bot):
                 await message.channel.send(data[1] + "\nPlease try again.")
                 return False
     except Exception as e:
-        print("verification func")
         print(e)
         return False
 
