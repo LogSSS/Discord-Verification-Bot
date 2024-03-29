@@ -179,7 +179,6 @@ async def on_guild_join_create_channels(guild):
             with open("src/data/channels.txt", "a") as file:
                 file.write(f"{guild.id} - {message.id}\n")
         else:
-            # change message id
             for i in range(len(lines)):
                 if str(guild.id) in lines[i]:
                     lines[i] = f"{guild.id} - {message.id}\n"
@@ -195,3 +194,6 @@ async def on_guild_join_create_channels(guild):
     await channel.set_permissions(guild.default_role, read_messages=False)
 
     await guild.edit(afk_channel=channel)
+
+    # create channel of guests
+    pass

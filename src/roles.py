@@ -116,5 +116,8 @@ async def is_user_exists(message, data):
 
 
 async def remove_user(message):
-    # remove user from database
-    pass
+    pool = await create_db_pool()
+    async with pool.acquire() as con:
+        async with con.transaction():
+            query = "DELETE FROM discord_users WHERE user_id = $1 AND server_id = $2"
+            await con.execute(query, str(message.author.id), str(message.guild.id))
