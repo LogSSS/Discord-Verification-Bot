@@ -74,7 +74,7 @@ async def check_result(result):
         return False, "Document is not active"
     if "Активний" != result["documentStatusActive"]:
         return False, "Document is not active"
-    if "Прикарпатський національний університет імені Василя Стефаника" != result["universityName"]:
+    if "Прикарпатський національний університет імені Василя Стефаника" not in result["universityName"]:
         return False, "You are not a student of the PNU"
     if result["documentExpiredDate"] < time.strftime("%d.%m.%Y"):
         return False, "Document is expired"

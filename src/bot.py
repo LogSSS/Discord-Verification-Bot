@@ -1,8 +1,9 @@
 import asyncio
-import discord
 import os
 
-from discord.ext import commands
+import discord
+from discord.ext import commands, tasks
+
 from src import functionality as f
 from src.db import create_db_pool
 
@@ -30,7 +31,12 @@ def run_discord_bot():
 
     @client.event
     async def on_member_join(member):
+        await member.add_roles(discord.utils.get(member.guild.roles, name="Guest"))
         print(f"{member} has joined the server!")
+
+    @tasks.loop(hours=24)
+    async def date_check(guild):
+        await f.date_check()
 
     @client.event
     async def on_raw_reaction_add(payload):
@@ -56,7 +62,7 @@ def run_discord_bot():
             return
 
         if message.content.startswith('!'):
-            await f.send_message(message, message.content[1:], False)
+            await f.date_check(message.guild)
 
         if isinstance(message.channel, discord.channel.TextChannel):
             if message.channel.category and message.channel.category.name == "VERIFICATION":

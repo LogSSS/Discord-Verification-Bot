@@ -60,9 +60,9 @@ async def verification(message, bot, loading_message):
 
         if link is not None:
 
-            data = verify.verify_by_qr(link)
+            data = await verify.verify_by_qr(link)
 
-            if data:
+            if data[0]:
                 await loading_message.delete()
                 await message.channel.send(f"Sorry but we cant verify u now\n{data[1]}")
                 return False
@@ -122,17 +122,20 @@ async def name_roles_and_channels(message, data):
         faculty = ''.join(word[0] for word in str(data['faculty']).split() if len(word) > 2).upper()
         role = data['group'] + " " + faculty
 
-        if not roles.is_role_exists(message.guild, role):
-            await roles.create_role(message.guild, role, None, True, get_new_role_id(message.guild, role))
-            if not roles.is_role_exists(message.guild, faculty):
+        if not await roles.is_role_exists(message.guild, role):
+            await roles.create_role(message.guild, role, None, True, 4)
+            if not await roles.is_role_exists(message.guild, faculty):
                 await roles.create_role(message.guild, faculty, None, False)
-            if not roles.is_category_exists(message.guild, faculty):
+                await roles.create_role(message.guild, f"Lecturer {faculty}", None, False)
+            if not await roles.is_category_exists(message.guild, faculty):
                 await roles.create_faculty_channel(message.guild, faculty)
             await roles.create_channels(message.guild, data['group'], faculty)
 
         await roles.add_role(message, faculty)
         await roles.add_role(message, role)
         await roles.add_role(message, "Verified")
+        await roles.remove_role(message, "Guest")
+        await set_channels_for_lecturer(message.guild)
     except Exception as e:
         print(f"An error occurred: {e}")
 
@@ -143,6 +146,14 @@ async def get_new_role_id(guild, role):
             return item.id
         if item.name > role:
             return item.id
+
+
+async def set_channels_for_lecturer(guild):
+    for category in guild.categories:
+        if sum(char.isdigit() for char in category.name) == 1:
+            for role in guild.roles:
+                if role.name.startwith("Lecturer"):
+                    await category.set_permissions(role, read_messages=True, send_messages=True)
 
 
 async def on_guild_join(guild):
@@ -156,8 +167,14 @@ async def on_guild_join_create_roles(guild):
                                 discord.Permissions(administrator=True))
         await guild.owner.add_roles(discord.utils.get(guild.roles, name="Admin"))
 
+    if not roles.is_role_exists(guild, "Graduate"):
+        await roles.create_role(guild, "Graduate", discord.Colour.from_rgb(255, 255, 0), True)
+
     if not roles.is_role_exists(guild, "Verified"):
         await roles.create_role(guild, "Verified", discord.Colour.from_rgb(71, 7, 7), False)
+
+    if not roles.is_role_exists(guild, "Guest"):
+        await roles.create_role(guild, "Guest", discord.Colour.from_rgb(220, 210, 215), True)
 
 
 async def on_guild_join_create_channels(guild):
@@ -187,6 +204,13 @@ async def on_guild_join_create_channels(guild):
         with open("src/data/channels.txt", "w") as file:
             file.write(f"{guild.id} - {message.id}\n")
 
+    category = await guild.create_category("General")
+    await guild.create_text_channel("General", category=category)
+    news = await guild.create_text_channel("News", category=category)
+    await news.set_permissions(guild.default_role, send_messages=False, read_messages=True)
+    await guild.create_voice_channel("Meeting-1", category=category)
+    await guild.create_voice_channel("Meeting-2", category=category)
+
     category = await guild.create_category("AFK")
     await category.set_permissions(discord.utils.get(guild.roles, name="Verified"), read_messages=True)
 
@@ -195,5 +219,13 @@ async def on_guild_join_create_channels(guild):
 
     await guild.edit(afk_channel=channel)
 
-    # create channel of guests
-    pass
+
+async def date_check(guild):
+    users = await roles.find_a_graduate()
+    for user in users:
+        user_id = user['user_id']
+        server_id = user['server_id']
+        user = await guild.fetch_member(user_id)
+        # remove before adding
+        await user.add_roles(discord.utils.get(guild.roles, name="Graduate"))
+        await roles.remove_user(user_id, server_id)
