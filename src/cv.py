@@ -66,7 +66,7 @@ def get_name_from_text(text):
     name = None
 
     for t in range(len(text) - 1):
-        if re.match(r'пр[иі]з?[ве][инч]ще.*([і1]м.*|[і1]я|ім\'я)', text[t][1].lower()):
+        if re.match(r'пр[иі]з?[ве][иншч]ще.*([і1]м.*|[і1]я|ім\'я)', text[t][1].lower()):
             if text[t + 1][1][0].islower():
                 name = text[t + 2][1] + " " + text[t + 3][1]
             else:
@@ -88,7 +88,7 @@ def get_faculty_from_text(text):
     faculty = ""
 
     for t_, t in enumerate(text):
-        if re.compile(r'форма\s+на[сшве][чнш]ан[ня]').search(t[1].lower()):
+        if re.compile(r'форма\s+на[сшвеє][чнш]ан[ня]').search(t[1].lower()):
             for i in range(t_ + 1, len(text)):
                 if "денна" in text[i][1].lower() or "заочна" in text[i][1].lower():
                     break

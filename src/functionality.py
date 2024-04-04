@@ -3,11 +3,19 @@ import requests
 import numpy as np
 import cv2
 
+from discord_components import Button, ButtonStyle
 from pyzbar.pyzbar import decode
 from src import responses
 from src import verify
 from src.cv import get_data as gt
 from src import roles
+
+
+async def handle_response(message, client):
+    if message.guild is None and message.content.startswith("!ask"):
+        response = await responses.ask_question(message, client)
+        return response
+    return responses.handle_response(message)
 
 
 async def create_verification_channel(member, guild):
@@ -37,15 +45,6 @@ async def create_verification_channel(member, guild):
                         f"Welcome, {member.mention}! Here u can verify ur account.\n"
                         f"To verify upload qr code from diia app or student id card photo")
 
-    except Exception as e:
-        print(e)
-
-
-async def send_message(message, user_message, is_private):
-    try:
-        response = responses.handle_response(user_message)
-
-        await message.author.send(response) if is_private else await message.channel.send(response)
     except Exception as e:
         print(e)
 
@@ -122,12 +121,12 @@ async def name_roles_and_channels(message, data):
         faculty = ''.join(word[0] for word in str(data['faculty']).split() if len(word) > 2).upper()
         role = data['group'] + " " + faculty
 
-        if not await roles.is_role_exists(message.guild, role):
+        if not roles.is_role_exists(message.guild, role):
             await roles.create_role(message.guild, role, None, True, 4)
-            if not await roles.is_role_exists(message.guild, faculty):
+            if not roles.is_role_exists(message.guild, faculty):
                 await roles.create_role(message.guild, faculty, None, False)
                 await roles.create_role(message.guild, f"Lecturer {faculty}", None, False)
-            if not await roles.is_category_exists(message.guild, faculty):
+            if not roles.is_category_exists(message.guild, faculty):
                 await roles.create_faculty_channel(message.guild, faculty)
             await roles.create_channels(message.guild, data['group'], faculty)
 
@@ -137,7 +136,7 @@ async def name_roles_and_channels(message, data):
         await roles.remove_role(message, "Guest")
         await set_channels_for_lecturer(message.guild)
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred1: {e}")
 
 
 async def get_new_role_id(guild, role):
@@ -152,7 +151,7 @@ async def set_channels_for_lecturer(guild):
     for category in guild.categories:
         if sum(char.isdigit() for char in category.name) == 1:
             for role in guild.roles:
-                if role.name.startwith("Lecturer"):
+                if role.name.startswith("Lecturer"):
                     await category.set_permissions(role, read_messages=True, send_messages=True)
 
 
@@ -203,6 +202,17 @@ async def on_guild_join_create_channels(guild):
     else:
         with open("src/data/channels.txt", "w") as file:
             file.write(f"{guild.id} - {message.id}\n")
+
+    category = await guild.create_category("Questions and Answers")
+    ask = await guild.create_text_channel("Ask", category=category)
+    await ask.set_permissions(guild.default_role, read_messages=True, send_messages=False)
+    await ask.send("To ask a question, please press the button below", components=[
+        Button(style=ButtonStyle.green, label="Ask", custom_id="ask")
+    ])
+    mods_channel = await guild.create_text_channel("Questions", category=category)
+    await mods_channel.set_permissions(guild.default_role, read_messages=False)
+    answers = await guild.create_text_channel("Answers", category=category)
+    await answers.set_permissions(guild.default_role, send_messages=True, read_messages=True)
 
     category = await guild.create_category("General")
     await guild.create_text_channel("General", category=category)

@@ -1,14 +1,19 @@
-import random
+import discord
+from discord_components import Button, ButtonStyle
 
 
-def handle_response(message) -> str:
-    p_message = message.lower()
+def handle_response(message):
+    p_message = message.content.lower()
 
-    if p_message == "hello":
-        return "Hi!"
+    if p_message == "!help":
+        return "Commands: !help, !refresh(only in verification channel), !ask <question> in DM"
 
-    if p_message == "roll":
-        return str(random.randint(1, 6))
 
-    if p_message == "help":
-        return "Commands: !roll, !hello, !help, !refresh(only in verification channel)"
+async def ask_question(message, client):
+    questions_channel = discord.utils.get(client.get_guild(1162071358549803170).channels, name="questions")
+    question = message.content.split(" ", 1)[1]
+    await questions_channel.send(question, components=[
+        Button(style=ButtonStyle.green, label="Approve", custom_id="approve"),
+        Button(style=ButtonStyle.red, label="Decline", custom_id="decline")
+    ])
+    return "Your question has been sent to the admins!"

@@ -77,7 +77,7 @@ async def create_role(guild, role_name, color=None, hoist=True, pos=-1, perm=Non
             pos = len(guild.roles)
 
         if not perm:
-            perm = discord.Permissions.general()
+            perm = discord.Permissions.none()
 
         if not color:
             color = discord.Colour.from_rgb(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
@@ -90,7 +90,7 @@ async def create_role(guild, role_name, color=None, hoist=True, pos=-1, perm=Non
         return None
 
 
-async def is_role_exists(guild, role_name):
+def is_role_exists(guild, role_name):
     if guild:
         role = discord.utils.get(guild.roles, name=role_name)
         if role:
@@ -99,7 +99,7 @@ async def is_role_exists(guild, role_name):
     return False
 
 
-async def is_category_exists(guild, category_name):
+def is_category_exists(guild, category_name):
     category = discord.utils.get(guild.categories, name=category_name)
 
     if category:
@@ -128,8 +128,8 @@ async def is_user_exists(message, data):
     pool = await create_db_pool()
     async with pool.acquire() as con:
         async with con.transaction():
-            query = "SELECT COUNT(*) FROM discord_users WHERE user_id = $1 AND server_id = $2 AND name = $3 AND series = $4"
-            count = await con.fetchval(query, str(message.author.id), str(message.guild.id), data['name'], series)
+            query = "SELECT COUNT(*) FROM discord_users WHERE server_id = $1 AND name = $2 AND series = $3"
+            count = await con.fetchval(query, str(message.guild.id), data['name'], series)
             return count > 0
 
 
