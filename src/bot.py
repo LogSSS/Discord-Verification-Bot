@@ -3,7 +3,7 @@ import os
 
 import discord
 from discord.ext import commands, tasks
-from discord_components import DiscordComponents, Button, ButtonStyle
+from discord_components import DiscordComponents, Button, ButtonStyle, ActionRow
 
 from src import functionality as f
 from src.db import create_db_pool
@@ -61,33 +61,22 @@ def run_discord_bot():
     @client.event
     async def on_button_click(interaction):
         if interaction.component.label == "Close":
-            await interaction.respond(type=6)
-            await asyncio.sleep(2)
-            await interaction.channel.delete()
-            return
-        if interaction.component.label == "Ask":
-            await interaction.respond(type=6)
-            name = "ask-" + interaction.user.name
-            channel = discord.utils.get(interaction.guild.channels, name=name)
-            if channel:
-                await channel.send("You already have a channel for asking questions!")
-                return
-            channel = await interaction.guild.create_text_channel(name, category=discord.utils.get(
-                interaction.guild.categories, name="Questions and Answers"))
-            await channel.send("Ask your question here! And please close ticket. Thank you!", components=[
-                Button(style=ButtonStyle.red, label="Close", custom_id="close")])
-            return
+            return await f.close_ticket(interaction)
+
         if interaction.component.label == "Approve":
-            await interaction.respond(type=6)
-            ans = discord.utils.get(interaction.guild.channels, name="answers")
-            message = await ans.send(interaction.message.content)
-            await message.pin()
-            await interaction.message.delete()
-            return
+            return await f.approve_question(interaction)
+
         if interaction.component.label == "Decline":
-            await interaction.respond(type=6)
-            await interaction.message.delete()
-            return
+            return await f.decline_question(interaction)
+
+        if interaction.component.label == "Ask":
+            return await f.ask_question(interaction)
+
+        if interaction.component.label == "Interested":
+            return await f.interested(interaction)
+
+        if interaction.component.label == "Not Interested":
+            return await f.not_interested(interaction)
 
     @client.event
     async def on_message(message):
@@ -98,11 +87,16 @@ def run_discord_bot():
             await f.handle_response(message, client)
 
         if isinstance(message.channel, discord.channel.TextChannel):
+            if "create-news" in message.channel.name:
+                await f.create_news(message)
+
             if "ask-" in message.channel.name:
                 channel = discord.utils.get(message.guild.channels, name="questions")
                 await channel.send(message.content, components=[
-                    Button(style=ButtonStyle.green, label="Approve", custom_id="approve"),
-                    Button(style=ButtonStyle.red, label="Decline", custom_id="decline")
+                    ActionRow(
+                        Button(style=ButtonStyle.green, label="Approve", custom_id="approve"),
+                        Button(style=ButtonStyle.red, label="Decline", custom_id="decline")
+                    )
                 ])
 
             elif message.channel.category and message.channel.category.name == "VERIFICATION":

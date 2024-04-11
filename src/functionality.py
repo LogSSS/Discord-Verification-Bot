@@ -1,9 +1,10 @@
+import re
 import discord
 import requests
 import numpy as np
 import cv2
 
-from discord_components import Button, ButtonStyle
+from discord_components import Button, ButtonStyle, ActionRow
 from pyzbar.pyzbar import decode
 from src import responses
 from src import verify
@@ -13,7 +14,7 @@ from src import roles
 
 async def handle_response(message, client):
     if message.guild is None and message.content.startswith("!ask"):
-        response = await responses.ask_question(message, client)
+        response = await responses.ask_anon(message, client)
         return response
     return responses.handle_response(message)
 
@@ -134,7 +135,7 @@ async def name_roles_and_channels(message, data):
         await roles.add_role(message, role)
         await roles.add_role(message, "Verified")
         await roles.remove_role(message, "Guest")
-        await set_channels_for_lecturer(message.guild)
+        await roles.set_channels_for_lecturer(message.guild)
     except Exception as e:
         print(f"An error occurred1: {e}")
 
@@ -145,14 +146,6 @@ async def get_new_role_id(guild, role):
             return item.id
         if item.name > role:
             return item.id
-
-
-async def set_channels_for_lecturer(guild):
-    for category in guild.categories:
-        if sum(char.isdigit() for char in category.name) == 1:
-            for role in guild.roles:
-                if role.name.startswith("Lecturer"):
-                    await category.set_permissions(role, read_messages=True, send_messages=True)
 
 
 async def on_guild_join(guild):
@@ -239,3 +232,64 @@ async def date_check(guild):
         # remove before adding
         await user.add_roles(discord.utils.get(guild.roles, name="Graduate"))
         await roles.remove_user(user_id, server_id)
+
+
+async def create_news(message):
+    title = message.content.split("\n")[0]
+    description = message.content.split("\n")[1]
+    start_date = message.content.split("\n")[2]
+    duration = message.content.split("\n")[3]
+    place = message.content.split("\n")[4]
+
+    if not title or not description or not start_date or not duration or not place:
+        return await message.channel.send("Wrong input! Please try again.")
+
+    if not is_valid_datetime(start_date):
+        return await message.channel.send("Wrong date format! Please try again.")
+
+    category = message.channel.category
+    name = "-".join(message.channel.name.split("-")[:2]) + "-news"
+    news = discord.utils.get(category.text_channels, name=name)
+
+    interested_count = await responses.get_interested_count(str(news.id), str(message.guild.id))
+
+    await news.send(f"**{title}**\n{description}\n\n"
+                    f"Start date: {start_date}\nDuration: {duration}\nPlace: {place}\n\n"
+                    f"Interested: {interested_count}\n\n@everyone",
+                    components=[
+                        ActionRow(
+                            Button(style=ButtonStyle.green, label="Interested", custom_id="interested"),
+                            Button(style=ButtonStyle.red, label="Not Interested", custom_id="not_interested")
+                        )
+                    ])
+
+
+def is_valid_datetime(datetime_str):
+    if re.match(r"\d{2}:\d{2}:\d{4}", datetime_str) or re.match(r"\d{2}\.\d{2}\.\d{4}", datetime_str):
+        return True
+    else:
+        return False
+
+
+async def close_ticket(interaction):
+    await responses.close_ticket(interaction)
+
+
+async def approve_question(interaction):
+    await responses.approve_question(interaction)
+
+
+async def decline_question(interaction):
+    await responses.decline_question(interaction)
+
+
+async def ask_question(interaction):
+    await responses.ask_question(interaction)
+
+
+async def interested(interaction):
+    await responses.interested(interaction)
+
+
+async def not_interested(interaction):
+    await responses.not_interested(interaction)

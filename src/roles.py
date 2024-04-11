@@ -1,9 +1,10 @@
-import discord
-import random
 import hashlib
+import random
+from datetime import datetime
+
+import discord
 
 from src.db import create_db_pool
-from datetime import datetime
 
 
 async def add_role(message, role):
@@ -53,17 +54,33 @@ async def create_channels(guild, group, faculty):
             target_role2: discord.PermissionOverwrite(read_messages=True, send_messages=True),
             target_role3: discord.PermissionOverwrite(read_messages=False, send_messages=False)
         }
+        overwrites3 = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            target_role2: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
 
         for i in range(0, 4):
             if i == 0:
                 category = await guild.create_category(group + " " + faculty, overwrites=overwrites1)
                 await guild.create_text_channel(group + "-news", category=category)
+                news = await guild.create_text_channel(group + "-create-news", category=category,
+                                                       overwrites=overwrites3)
+                await news.send(
+                    "If u want to create news, please write it here in this format:\nTitle\nDescription\nDate(DD:MM:YYYY)\nDuration(in minutes)\nPlace")
+                await news.send(
+                    "For example:\nMeeting\nWe will discuss the future of our group\n21.05.2024\n60\n231 room")
                 await guild.create_text_channel(group + "-general", category=category)
                 await guild.create_voice_channel(group, category=category)
                 await guild.create_voice_channel(group + "-defence", category=category, user_limit=2)
             else:
                 category = await guild.create_category(group + f"{i} " + faculty, overwrites=overwrites2)
                 await guild.create_text_channel(group + f"{i}-news", category=category)
+                news = await guild.create_text_channel(group + f"{i}-create-news", category=category,
+                                                       overwrites=overwrites3)
+                await news.send(
+                    "If u want to create news, please write it here in this format:\nTitle\nDescription\nDate(DD:MM:YYYY)\nDuration(in minutes)\nPlace")
+                await news.send(
+                    "For example:\nMeeting\nWe will discuss the future of our group\n21.05.2024\n60\n231 room")
                 await guild.create_text_channel(group + f"{i}-general", category=category)
                 await guild.create_voice_channel(group + f"{i}", category=category)
                 await guild.create_voice_channel(group + f"{i}-defence", category=category, user_limit=2)
@@ -111,6 +128,14 @@ def is_category_exists(guild, category_name):
 async def change_name(message, name):
     member = message.guild.get_member(message.author.id)
     await member.edit(nick=name)
+
+
+async def set_channels_for_lecturer(guild):
+    for category in guild.categories:
+        if sum(char.isdigit() for char in category.name) == 1:
+            for role in guild.roles:
+                if role.name.startswith("Lecturer"):
+                    await category.set_permissions(role, read_messages=True, send_messages=True)
 
 
 async def add_user(message, data):
