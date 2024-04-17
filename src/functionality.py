@@ -1,4 +1,6 @@
 import re
+from datetime import datetime
+
 import discord
 import requests
 import numpy as np
@@ -10,6 +12,7 @@ from src import responses
 from src import verify
 from src.cv import get_data as gt
 from src import roles
+from src.db import create_db_pool
 
 
 async def handle_response(message, client):
@@ -229,23 +232,48 @@ async def date_check(guild):
         user_id = user['user_id']
         server_id = user['server_id']
         user = await guild.fetch_member(user_id)
-        # remove before adding
+        await roles.remove_all_roles(user, guild)
         await user.add_roles(discord.utils.get(guild.roles, name="Graduate"))
+        await user.add_roles(discord.utils.get(guild.roles, name="Verified"))
         await roles.remove_user(user_id, server_id)
+
+
+async def news_check(client):
+    pool = await create_db_pool()
+    async with pool.acquire() as conn:
+        result = await conn.fetch(
+            "DELETE FROM news_data WHERE expiration_date < $1 RETURNING message_id, channel_id, guild_id",
+            datetime.now()
+        )
+    await pool.close()
+    for row in result:
+        guild = client.get_guild(int(row['guild_id']))
+        channel = discord.utils.get(guild.text_channels, id=int(row['channel_id']))
+        message = await channel.fetch_message(int(row['message_id']))
+        await message.delete()
 
 
 async def create_news(message):
     title = message.content.split("\n")[0]
-    description = message.content.split("\n")[1]
-    start_date = message.content.split("\n")[2]
-    duration = message.content.split("\n")[3]
+    start_date = message.content.split("\n")[1]
+    start_time = message.content.split("\n")[2]
+    end_time = message.content.split("\n")[3]
     place = message.content.split("\n")[4]
+    description = "\n".join(message.content.split("\n")[4:])
 
-    if not title or not description or not start_date or not duration or not place:
-        return await message.channel.send("Wrong input! Please try again.")
+    attachments = message.attachments
 
-    if not is_valid_datetime(start_date):
-        return await message.channel.send("Wrong date format! Please try again.")
+    if not title or not description or not start_date or not end_time or not place or not start_time:
+        return False, await message.channel.send("Wrong input! Please try again.")
+
+    if not validate_date(start_date):
+        return False, await message.channel.send("Wrong date format! Please try again.")
+
+    if not validate_time(start_time) or not validate_time(end_time):
+        return False, await message.channel.send("Wrong time format! Please try again.")
+
+    if datetime.strptime(start_time, '%H:%M') > datetime.strptime(end_time, '%H:%M'):
+        return False, await message.channel.send("End time is earlier than start time! Please try again.")
 
     category = message.channel.category
     name = "-".join(message.channel.name.split("-")[:2]) + "-news"
@@ -253,21 +281,43 @@ async def create_news(message):
 
     interested_count = await responses.get_interested_count(str(news.id), str(message.guild.id))
 
-    await news.send(f"**{title}**\n{description}\n\n"
-                    f"Start date: {start_date}\nDuration: {duration}\nPlace: {place}\n\n"
-                    f"Interested: {interested_count}\n\n@everyone",
-                    components=[
-                        ActionRow(
-                            Button(style=ButtonStyle.green, label="Interested", custom_id="interested"),
-                            Button(style=ButtonStyle.red, label="Not Interested", custom_id="not_interested")
-                        )
-                    ])
+    mess = await news.send(f"**{title}**\n{description}\n\n"
+                           f"Start date: {start_date}\nStart time: {start_time}\nEnd time: {end_time}\nPlace: {place}\n\n"
+                           f"Interested: {interested_count}\n\n@everyone",
+                           files=[await attachment.to_file() for attachment in attachments],
+                           components=[
+                               ActionRow(
+                                   Button(style=ButtonStyle.green, label="Interested", custom_id="interested"),
+                                   Button(style=ButtonStyle.red, label="Not Interested", custom_id="not_interested")
+                               )
+                           ])
+
+    start_datetime = datetime.strptime(start_date + ' ' + end_time, '%d.%m.%Y %H:%M')
+
+    pool = await create_db_pool()
+    async with pool.acquire() as connection:
+        await connection.execute(
+            "INSERT INTO news_data (message_id, guild_id, expiration_date, channel_id) "
+            "VALUES ($1, $2, $3)",
+            str(mess.id), str(message.guild.id), start_datetime, str(mess.id)
+        )
+    await pool.close()
+    return True, await message.delete()
 
 
-def is_valid_datetime(datetime_str):
-    if re.match(r"\d{2}:\d{2}:\d{4}", datetime_str) or re.match(r"\d{2}\.\d{2}\.\d{4}", datetime_str):
+def validate_date(input_date):
+    try:
+        datetime.strptime(input_date, '%d.%m.%Y')
         return True
-    else:
+    except ValueError:
+        return False
+
+
+def validate_time(input_time):
+    try:
+        datetime.strptime(input_time, '%H:%M')
+        return True
+    except ValueError:
         return False
 
 

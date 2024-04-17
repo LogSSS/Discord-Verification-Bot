@@ -81,6 +81,7 @@ async def interested(interaction):
             user_id, message_id, guild_id
         )
         if existing_interest:
+            await pool.close()
             return
 
         await conn.execute(
@@ -88,7 +89,7 @@ async def interested(interaction):
             "VALUES ($1, $2, $3)",
             user_id, message_id, guild_id
         )
-
+    await pool.close()
     interested_count = await get_interested_count(message_id, guild_id)
 
     await interaction.message.edit(content=interaction.message.content.replace(
@@ -111,7 +112,7 @@ async def not_interested(interaction):
             "DELETE FROM interested_users WHERE user_id = $1 AND message_id = $2 AND guild_id = $3",
             user_id, message_id, guild_id
         )
-
+    await pool.close()
     interested_count = await get_interested_count(message_id, guild_id)
 
     await interaction.message.edit(content=interaction.message.content.replace(
@@ -127,4 +128,5 @@ async def get_interested_count(message_id, guild_id):
             "SELECT COUNT(*) FROM interested_users WHERE message_id = $1 AND guild_id = $2",
             message_id, guild_id
         )
+    await pool.close()
     return count

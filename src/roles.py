@@ -21,15 +21,33 @@ async def remove_role(message, role):
         print(f"An error occurred while removing role: {e}")
 
 
+async def remove_all_roles(user, guild):
+    try:
+        await user.edit(roles=[guild.default_role])
+    except Exception as e:
+        print(f"An error occurred while removing all roles: {e}")
+
+
 async def create_faculty_channel(guild, faculty):
     try:
         category = discord.utils.get(guild.categories, name=faculty)
         if not category:
             category = await guild.create_category(faculty)
+        target_role = discord.utils.get(guild.roles, name="Lecturer " + faculty)
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            target_role: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
         await category.set_permissions(guild.default_role, read_messages=False)
         await category.set_permissions(discord.utils.get(guild.roles, name=faculty), read_messages=True)
         await guild.create_text_channel("General", category=category)
         await guild.create_text_channel("News", category=category)
+        news = await guild.create_text_channel(faculty + "-create-news", category=category,
+                                               overwrites=overwrites)
+        await news.send(
+            "If u want to create news, please write it here in this format. Also u can make attachment(optional):\nTitle\nDate(DD:MM:YYYY)\nStart time(hh:mm)\nEnd time(hh:mm)\nPlace\nDescription")
+        await news.send(
+            "For example:\nMeeting\n21.05.2024\n13:00\n13:30\n231 room\nWe will discuss the future of our group\nU get a candy for participation")
         await guild.create_voice_channel("Meeting", category=category)
     except Exception as e:
         print(f"An error occurred while creating faculty channel '{faculty}': {e}")
@@ -66,9 +84,9 @@ async def create_channels(guild, group, faculty):
                 news = await guild.create_text_channel(group + "-create-news", category=category,
                                                        overwrites=overwrites3)
                 await news.send(
-                    "If u want to create news, please write it here in this format:\nTitle\nDescription\nDate(DD:MM:YYYY)\nDuration(in minutes)\nPlace")
+                    "If u want to create news, please write it here in this format. Also u can make attachment(optional):\nTitle\nDate(DD:MM:YYYY)\nStart time(hh:mm)\nEnd time(hh:mm)\nPlace\nDescription")
                 await news.send(
-                    "For example:\nMeeting\nWe will discuss the future of our group\n21.05.2024\n60\n231 room")
+                    "For example:\nMeeting\n21.05.2024\n13:00\n13:30\n231 room\nWe will discuss the future of our group\nU get a candy for participation")
                 await guild.create_text_channel(group + "-general", category=category)
                 await guild.create_voice_channel(group, category=category)
                 await guild.create_voice_channel(group + "-defence", category=category, user_limit=2)
@@ -78,9 +96,9 @@ async def create_channels(guild, group, faculty):
                 news = await guild.create_text_channel(group + f"{i}-create-news", category=category,
                                                        overwrites=overwrites3)
                 await news.send(
-                    "If u want to create news, please write it here in this format:\nTitle\nDescription\nDate(DD:MM:YYYY)\nDuration(in minutes)\nPlace")
+                    "If u want to create news, please write it here in this format. Also u can make attachment(optional):\nTitle\nDate(DD:MM:YYYY)\nStart time(hh:mm)\nEnd time(hh:mm)\nPlace\nDescription")
                 await news.send(
-                    "For example:\nMeeting\nWe will discuss the future of our group\n21.05.2024\n60\n231 room")
+                    "For example:\nMeeting\n21.05.2024\n13:00\n13:30\n231 room\nWe will discuss the future of our group\nU get a candy for participation")
                 await guild.create_text_channel(group + f"{i}-general", category=category)
                 await guild.create_voice_channel(group + f"{i}", category=category)
                 await guild.create_voice_channel(group + f"{i}-defence", category=category, user_limit=2)
@@ -146,6 +164,7 @@ async def add_user(message, data):
             query = "INSERT INTO discord_users (user_id, server_id, name, date, series) VALUES ($1, $2, $3, $4, $5)"
             await con.execute(query, str(message.author.id), str(message.guild.id),
                               data['name'], datetime.strptime(data['expired'], '%d.%m.%Y').date(), series)
+    await pool.close()
 
 
 async def is_user_exists(message, data):
@@ -155,6 +174,7 @@ async def is_user_exists(message, data):
         async with con.transaction():
             query = "SELECT COUNT(*) FROM discord_users WHERE server_id = $1 AND name = $2 AND series = $3"
             count = await con.fetchval(query, str(message.guild.id), data['name'], series)
+            await pool.close()
             return count > 0
 
 
@@ -164,6 +184,7 @@ async def remove_user(user_id, server_id):
         async with con.transaction():
             query = "DELETE FROM discord_users WHERE user_id = $1 AND server_id = $2"
             await con.execute(query, user_id, server_id)
+    await pool.close()
 
 
 async def find_a_graduate():
@@ -171,4 +192,5 @@ async def find_a_graduate():
     async with pool.acquire() as con:
         async with con.transaction():
             query = "SELECT * FROM discord_users WHERE date < $1"
+            await pool.close()
             return await con.fetch(query, datetime.now().date())

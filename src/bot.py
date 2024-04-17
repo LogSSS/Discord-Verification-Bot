@@ -40,6 +40,10 @@ def run_discord_bot():
     async def date_check(guild):
         await f.date_check(guild)
 
+    @tasks.loop(minutes=30)
+    async def news_check():
+        await f.news_check(client)
+
     @client.event
     async def on_raw_reaction_add(payload):
         try:
@@ -84,11 +88,15 @@ def run_discord_bot():
             return
 
         if message.content.startswith('!'):
+            await f.news_check(client)
             await f.handle_response(message, client)
 
         if isinstance(message.channel, discord.channel.TextChannel):
             if "create-news" in message.channel.name:
-                await f.create_news(message)
+                resp = await f.create_news(message)
+                if not resp[0]:
+                    await asyncio.sleep(20)
+                    await message.delete()
 
             if "ask-" in message.channel.name:
                 channel = discord.utils.get(message.guild.channels, name="questions")
@@ -107,4 +115,6 @@ def run_discord_bot():
                         await message.channel.delete()
 
     client.loop.run_until_complete(create_db_pool())
+    date_check.start()
+    news_check.start()
     client.run(os.environ['TOKEN'])
