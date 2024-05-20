@@ -15,6 +15,7 @@ async def verify_by_card(data, message, bot):
         return False, json_data[1]
     json = json_data[1]
     new_data = await get_data_from_json(json, data)
+    print(new_data)
     return True, new_data
 
 
@@ -57,30 +58,30 @@ async def get_json_data(data, message, bot):
         js_function = file.read()
 
     result = driver.execute_async_script(js_function)
-    result = {key: value for key, value in result.items() if value != ''}
     driver.quit()
     res = await check_result(result)
-    if not res[0]:
-        return False, res[1]
+    if res:
+        return False, res
+
+    result = {key: value for key, value in result.items() if value != ''}
     return True, result
 
 
 async def check_result(result):
-    if "Data encryption error" == result:
-        return False, "Data encryption error"
-    if "No data found" == result:
-        return False, "No data"
+    print(type(result))
+    if str == type(result):
+        return result
     if "Активний" != result["documentStatus"]:
-        return False, "Document is not active"
+        return "Document is not active"
     if "Активний" != result["documentStatusActive"]:
-        return False, "Document is not active"
+        return "Document is not active"
     if "Прикарпатський національний університет імені Василя Стефаника" not in result["universityName"]:
-        return False, "You are not a student of the PNU"
+        return "You are not a student of the PNU"
     if result["documentExpiredDate"] < time.strftime("%d.%m.%Y"):
-        return False, "Document is expired"
-    if 1 == result["documentExists"]:
-        return True, result
-    return False, result
+        return "Document is expired"
+    if 1 != result["documentExists"]:
+        return "Document does not exist"
+    return False
 
 
 async def get_proper_old_data(data, captcha):
@@ -96,7 +97,6 @@ async def get_proper_old_data(data, captcha):
     firstName = nameMatches.group(2)
     middleName = nameMatches.group(3)
     skipMiddleName = "false" if middleName else "true"
-
     return {
         "documentSeries": documentSeries,
         "documentNumber": documentNumber,

@@ -1,4 +1,4 @@
-import re
+import asyncio
 from datetime import datetime
 
 import discord
@@ -226,12 +226,13 @@ async def on_guild_join_create_channels(guild):
     await guild.edit(afk_channel=channel)
 
 
-async def date_check(guild):
+async def date_check(client):
     users = await roles.find_a_graduate()
     for user in users:
         user_id = user['user_id']
         server_id = user['server_id']
-        user = await guild.fetch_member(user_id)
+        user = await client.fetch_user(user_id)
+        guild = await client.fetch_guild(server_id)
         await roles.remove_all_roles(user, guild)
         await user.add_roles(discord.utils.get(guild.roles, name="Graduate"))
         await user.add_roles(discord.utils.get(guild.roles, name="Verified"))
@@ -245,7 +246,7 @@ async def news_check(client):
             "DELETE FROM news_data WHERE expiration_date < $1 RETURNING message_id, channel_id, guild_id",
             datetime.now()
         )
-    await pool.close()
+    await asyncio.wait_for(pool.close(), timeout=60)
     for row in result:
         guild = client.get_guild(int(row['guild_id']))
         channel = discord.utils.get(guild.text_channels, id=int(row['channel_id']))
@@ -259,7 +260,7 @@ async def create_news(message):
     start_time = message.content.split("\n")[2]
     end_time = message.content.split("\n")[3]
     place = message.content.split("\n")[4]
-    description = "\n".join(message.content.split("\n")[4:])
+    description = "\n".join(message.content.split("\n")[5:])
 
     attachments = message.attachments
 
@@ -301,7 +302,7 @@ async def create_news(message):
             "VALUES ($1, $2, $3)",
             str(mess.id), str(message.guild.id), start_datetime, str(mess.id)
         )
-    await pool.close()
+    await asyncio.wait_for(pool.close(), timeout=60)
     return True, await message.delete()
 
 

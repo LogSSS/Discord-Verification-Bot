@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 import discord
 from discord_components import Button, ButtonStyle, ActionRow
@@ -73,32 +74,37 @@ async def interested(interaction):
     user_id = str(interaction.user.id)
     message_id = str(interaction.message.id)
     guild_id = str(interaction.guild.id)
-    pool = await create_db_pool()
+    async with await create_db_pool() as pool:
+        async with pool.acquire() as conn:
+            existing_interest = await conn.fetchval(
+                "SELECT 1 FROM interested_users WHERE user_id = $1 AND message_id = $2 AND guild_id = $3",
+                user_id, message_id, guild_id
+            )
+            if existing_interest:
+                return
 
-    async with pool.acquire() as conn:
-        existing_interest = await conn.fetchval(
-            "SELECT 1 FROM interested_users WHERE user_id = $1 AND message_id = $2 AND guild_id = $3",
-            user_id, message_id, guild_id
-        )
-        if existing_interest:
-            await pool.close()
-            return
-
-        await conn.execute(
-            "INSERT INTO interested_users (user_id, message_id, guild_id) "
-            "VALUES ($1, $2, $3)",
-            user_id, message_id, guild_id
-        )
-    await pool.close()
+            await conn.execute(
+                "INSERT INTO interested_users (user_id, message_id, guild_id) "
+                "VALUES ($1, $2, $3)",
+                user_id, message_id, guild_id
+            )
     interested_count = await get_interested_count(message_id, guild_id)
 
-    await interaction.message.edit(content=interaction.message.content.replace(
-        f"Interested: {interaction.message.content.splitlines()[7].split(': ')[1]}",
-        f"Interested: {interested_count}"
-    ))
+    await set_interested_count(interaction, interested_count)
 
+    data = await parse_news_text(interaction.message.content)
+
+    link = await create_google_calendar_link(data)
+
+    text = interaction.message.content.split("\n")[0]
     await interaction.user.send(
-        "You have shown interest in the event. If you are no longer interested, please click the 'Not Interested' button.")
+        f"You have shown interest in \"{text}\". Also you can add this event to your Google Calendar.",
+        components=[
+            ActionRow(
+                Button(style=ButtonStyle.URL, label="Google Calendar", url=link)
+            )
+        ]
+    )
 
 
 async def not_interested(interaction):
@@ -106,27 +112,76 @@ async def not_interested(interaction):
     user_id = str(interaction.user.id)
     message_id = str(interaction.message.id)
     guild_id = str(interaction.guild.id)
-    pool = await create_db_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "DELETE FROM interested_users WHERE user_id = $1 AND message_id = $2 AND guild_id = $3",
-            user_id, message_id, guild_id
-        )
-    await pool.close()
+    async with await create_db_pool() as pool:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM interested_users WHERE user_id = $1 AND message_id = $2 AND guild_id = $3",
+                user_id, message_id, guild_id
+            )
     interested_count = await get_interested_count(message_id, guild_id)
 
-    await interaction.message.edit(content=interaction.message.content.replace(
-        f"Interested: {interaction.message.content.splitlines()[7].split(': ')[1]}",
-        f"Interested: {interested_count}"
-    ))
+    await set_interested_count(interaction, interested_count)
+
+
+async def create_google_calendar_link(data):
+    title = data[0]
+    description = data[1].replace("\n", "%0A")
+    date = data[2]
+    start_time = data[3]
+    end_time = data[4]
+    location = data[5]
+
+    base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
+    title_param = "&text=" + title.replace(" ", "+")
+    description_param = "&details=" + description.replace(" ", "+")
+    date_parts = date.split(".")
+    date_param = "&dates=" + date_parts[2] + date_parts[1] + date_parts[0] + "T" + start_time.replace(":",
+                                                                                                      "") + "00+0300/" + \
+                 date_parts[2] + date_parts[1] + date_parts[0] + "T" + end_time.replace(":", "") + "00+0300"
+
+    location_param = "&location=" + location.replace(" ", "+")
+
+    return base_url + title_param + description_param + date_param + location_param
+
+
+async def parse_news_text(str):
+    lines = str.split("\n")
+    title = lines[0]
+
+    description = ""
+    for i, line in enumerate(lines[1:], start=1):
+        if line.startswith("Start date:"):
+            break
+        description += line + "\n"
+    description = description.strip()
+
+    date_match = re.search(r"Start date: (\d{2}\.\d{2}\.\d{4})", str)
+    start_time_match = re.search(r"Start time: (\d{2}:\d{2})", str)
+    end_time_match = re.search(r"End time: (\d{2}:\d{2})", str)
+    place_match = re.search(r"Place: (.+)", str)
+
+    if date_match and start_time_match and end_time_match and place_match:
+        date = date_match.group(1)
+        start_time = start_time_match.group(1)
+        end_time = end_time_match.group(1)
+        location = place_match.group(1)
+    else:
+        raise ValueError("News text is not formatted properly")
+    return title, description, date, start_time, end_time, location
+
+
+async def set_interested_count(interaction, count):
+    content = interaction.message.content
+    pattern = r'Interested: \d+\n'
+    content = re.sub(pattern, f'Interested: {count}\n', content)
+    await interaction.message.edit(content=content)
 
 
 async def get_interested_count(message_id, guild_id):
-    pool = await create_db_pool()
-    async with pool.acquire() as conn:
-        count = await conn.fetchval(
-            "SELECT COUNT(*) FROM interested_users WHERE message_id = $1 AND guild_id = $2",
-            message_id, guild_id
-        )
-    await pool.close()
+    async with await create_db_pool() as pool:
+        async with pool.acquire() as conn:
+            count = await conn.fetchval(
+                "SELECT COUNT(*) FROM interested_users WHERE message_id = $1 AND guild_id = $2",
+                message_id, guild_id
+            )
     return count

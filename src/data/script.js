@@ -32,12 +32,10 @@ function fetchData() {
                 success: function (ed) {
                     requestStop();
                     if (ed.error) {
-                        console.log(ed.error);
                         value = ed.error;
                     } else if (!ed.Data) {
                         value = 'No data found';
                     } else {
-                        console.log("Parse");
                         const d = JSON.parse(decode(ed.Data));
                         value = d;
                     }

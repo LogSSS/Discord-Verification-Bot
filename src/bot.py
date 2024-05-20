@@ -37,8 +37,8 @@ def run_discord_bot():
         print(f"{member} has joined the server!")
 
     @tasks.loop(hours=24)
-    async def date_check(guild):
-        await f.date_check(guild)
+    async def date_check():
+        await f.date_check(client)
 
     @tasks.loop(minutes=30)
     async def news_check():

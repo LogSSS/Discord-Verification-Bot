@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import random
 from datetime import datetime
@@ -77,7 +78,7 @@ async def create_channels(guild, group, faculty):
             target_role2: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
 
-        for i in range(0, 4):
+        for i in range(0, 2):
             if i == 0:
                 category = await guild.create_category(group + " " + faculty, overwrites=overwrites1)
                 await guild.create_text_channel(group + "-news", category=category)
@@ -158,39 +159,35 @@ async def set_channels_for_lecturer(guild):
 
 async def add_user(message, data):
     series = hashlib.sha512(data['series'].encode()).hexdigest()
-    pool = await create_db_pool()
-    async with pool.acquire() as con:
-        async with con.transaction():
-            query = "INSERT INTO discord_users (user_id, server_id, name, date, series) VALUES ($1, $2, $3, $4, $5)"
-            await con.execute(query, str(message.author.id), str(message.guild.id),
-                              data['name'], datetime.strptime(data['expired'], '%d.%m.%Y').date(), series)
-    await pool.close()
+    async with await create_db_pool() as pool:
+        async with pool.acquire() as con:
+            async with con.transaction():
+                query = "INSERT INTO discord_users (user_id, server_id, name, date, series) VALUES ($1, $2, $3, $4, $5)"
+                await con.execute(query, str(message.author.id), str(message.guild.id),
+                                  data['name'], datetime.strptime(data['expired'], '%d.%m.%Y').date(), series)
 
 
 async def is_user_exists(message, data):
     series = hashlib.sha512(data['series'].encode()).hexdigest()
-    pool = await create_db_pool()
-    async with pool.acquire() as con:
-        async with con.transaction():
-            query = "SELECT COUNT(*) FROM discord_users WHERE server_id = $1 AND name = $2 AND series = $3"
-            count = await con.fetchval(query, str(message.guild.id), data['name'], series)
-            await pool.close()
-            return count > 0
+    async with await create_db_pool() as pool:
+        async with pool.acquire() as con:
+            async with con.transaction():
+                query = "SELECT COUNT(*) FROM discord_users WHERE server_id = $1 AND name = $2 AND series = $3"
+                count = await con.fetchval(query, str(message.guild.id), data['name'], series)
+                return count > 0
 
 
 async def remove_user(user_id, server_id):
-    pool = await create_db_pool()
-    async with pool.acquire() as con:
-        async with con.transaction():
-            query = "DELETE FROM discord_users WHERE user_id = $1 AND server_id = $2"
-            await con.execute(query, user_id, server_id)
-    await pool.close()
+    async with await create_db_pool() as pool:
+        async with pool.acquire() as con:
+            async with con.transaction():
+                query = "DELETE FROM discord_users WHERE user_id = $1 AND server_id = $2"
+                await con.execute(query, user_id, server_id)
 
 
 async def find_a_graduate():
-    pool = await create_db_pool()
-    async with pool.acquire() as con:
-        async with con.transaction():
-            query = "SELECT * FROM discord_users WHERE date < $1"
-            await pool.close()
-            return await con.fetch(query, datetime.now().date())
+    async with await create_db_pool() as pool:
+        async with pool.acquire() as con:
+            async with con.transaction():
+                query = "SELECT * FROM discord_users WHERE date < $1"
+                return await con.fetch(query, datetime.now().date())
